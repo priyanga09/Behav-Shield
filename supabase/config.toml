@@ -1,0 +1,13 @@
+project_id = "nhxlvrehmqodhfwogmba"
+
+[functions.train-model]
+verify_jwt = false
+
+[functions.predict]
+verify_jwt = false
+
+[functions.bulk-predict]
+verify_jwt = false
+
+[functions.stream-control]
+verify_jwt = false
