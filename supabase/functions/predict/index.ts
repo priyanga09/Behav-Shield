@@ -101,7 +101,7 @@ serve(async (req) => {
         
         const emailResponse = await resend.emails.send({
           from: "Anomaly Alert <onboarding@resend.dev>",
-          to: ["your-email@example.com"], // Replace with actual email
+          to: ["231901037@rajalakshmi.edu.in"], // Replace with actual email
           subject: "⚠️ Anomaly Detected in User Behavior",
           html: `
             <h1>Anomaly Alert</h1>
