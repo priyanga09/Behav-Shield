@@ -34,7 +34,19 @@ const Index = () => {
         },
         (payload) => {
           console.log('New record:', payload.new);
-          setRecords(prev => [payload.new, ...prev].slice(0, 100));
+          const newRecord = payload.new as any;
+          setRecords(prev => [newRecord, ...prev].slice(0, 100));
+          
+          // Alert when anomaly is detected
+          if (newRecord.is_anomaly) {
+            toast.error(
+              `⚠️ Anomaly Detected! Distance: ${newRecord.distance.toFixed(4)}`,
+              {
+                description: `Detected at ${new Date(newRecord.timestamp).toLocaleTimeString()}`,
+                duration: 5000,
+              }
+            );
+          }
         }
       )
       .subscribe();
