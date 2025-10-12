@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Resend } from "https://esm.sh/resend@4.0.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -92,6 +93,44 @@ serve(async (req) => {
       : `✅ Normal Behavior (Distance: ${minDistance.toFixed(4)})`;
 
     console.log('Prediction result:', message);
+
+    // Send email alert if anomaly is detected
+    if (isAnomaly) {
+      try {
+        const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+        
+        const emailResponse = await resend.emails.send({
+          from: "Anomaly Alert <onboarding@resend.dev>",
+          to: ["your-email@example.com"], // Replace with actual email
+          subject: "⚠️ Anomaly Detected in User Behavior",
+          html: `
+            <h1>Anomaly Alert</h1>
+            <p><strong>An anomaly has been detected in user behavior!</strong></p>
+            <h2>Details:</h2>
+            <ul>
+              <li><strong>Timestamp:</strong> ${new Date(timestamp).toLocaleString()}</li>
+              <li><strong>Distance:</strong> ${minDistance.toFixed(4)}</li>
+              <li><strong>Threshold:</strong> ${threshold.toFixed(4)}</li>
+            </ul>
+            <h2>Behavior Metrics:</h2>
+            <ul>
+              <li><strong>Total Logins:</strong> ${total_logins}</li>
+              <li><strong>Total Access:</strong> ${total_access}</li>
+              <li><strong>Failed Logins:</strong> ${failed_logins}</li>
+              <li><strong>Unique Resources:</strong> ${unique_resources}</li>
+              <li><strong>Avg Daily Access:</strong> ${avg_daily_access}</li>
+              <li><strong>Avg Bytes:</strong> ${avg_bytes}</li>
+            </ul>
+            <p style="color: red; font-weight: bold;">⚠️ This behavior pattern deviates significantly from normal patterns and requires immediate attention.</p>
+          `,
+        });
+
+        console.log("Alert email sent successfully:", emailResponse);
+      } catch (emailError) {
+        console.error("Failed to send alert email:", emailError);
+        // Don't fail the entire request if email fails
+      }
+    }
 
     return new Response(
       JSON.stringify({
