@@ -42,7 +42,10 @@ export function BehaviorHistory({ records }: BehaviorHistoryProps) {
                     </TableCell>
                     <TableCell>{record.distance.toFixed(4)}</TableCell>
                     <TableCell>
-                      <Badge variant={record.is_anomaly ? 'destructive' : 'default'}>
+                      <Badge 
+                        variant={record.is_anomaly ? 'destructive' : 'default'}
+                        className={record.is_anomaly ? '' : 'bg-accent text-accent-foreground'}
+                      >
                         {record.is_anomaly ? '⚠️ Anomaly' : '✓ Normal'}
                       </Badge>
                     </TableCell>

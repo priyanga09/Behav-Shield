@@ -152,8 +152,13 @@ const Index = () => {
       toast.error('Failed to clear history');
     } else {
       setRecords([]);
-      toast.success('History cleared');
+      toast.success('History cleared from database');
     }
+  };
+
+  const clearLocalHistory = () => {
+    setRecords([]);
+    toast.success('Local view cleared (database unchanged)');
   };
 
   return (
@@ -172,15 +177,23 @@ const Index = () => {
               onClick={trainModel} 
               disabled={isTraining || modelTrained}
               size="lg"
+              className="bg-gradient-to-r from-primary to-primary-glow hover:opacity-90 transition-opacity"
             >
               {isTraining ? 'Training...' : modelTrained ? 'Model Trained ✓' : 'Train Model'}
             </Button>
             <Button 
-              onClick={clearHistory} 
+              onClick={clearLocalHistory} 
               variant="outline"
               size="lg"
             >
-              Clear History
+              Clear Local View
+            </Button>
+            <Button 
+              onClick={clearHistory} 
+              variant="destructive"
+              size="lg"
+            >
+              Clear Database
             </Button>
           </div>
         </header>
