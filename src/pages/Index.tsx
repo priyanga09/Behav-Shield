@@ -6,13 +6,17 @@ import { StreamControls } from "@/components/StreamControls";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Moon, Sun, RefreshCw } from "lucide-react";
+import { useTheme } from "next-themes";
 
 const Index = () => {
+  const { theme, setTheme } = useTheme();
   const [records, setRecords] = useState<any[]>([]);
   const [isTraining, setIsTraining] = useState(false);
   const [modelTrained, setModelTrained] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamInterval, setStreamInterval] = useState<NodeJS.Timeout | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   useEffect(() => {
     // Check if model is trained
@@ -55,16 +59,23 @@ const Index = () => {
   };
 
   const loadHistory = async () => {
-    const { data, error } = await supabase
-      .from('behavior_records')
-      .select('*')
-      .order('timestamp', { ascending: false })
-      .limit(50);
+    setIsLoadingHistory(true);
+    try {
+      const { data, error } = await supabase
+        .from('behavior_records')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(50);
 
-    if (error) {
-      console.error('Error loading history:', error);
-    } else {
-      setRecords(data || []);
+      if (error) {
+        console.error('Error loading history:', error);
+        toast.error('Failed to load history');
+      } else {
+        setRecords(data || []);
+        toast.success('History reloaded');
+      }
+    } finally {
+      setIsLoadingHistory(false);
     }
   };
 
@@ -164,15 +175,27 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background/95 to-primary/5 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
-        <header className="text-center space-y-4">
-          <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
+        <header className="text-center space-y-4 relative">
+          <div className="absolute top-0 right-0">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="rounded-full"
+            >
+              <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <span className="sr-only">Toggle theme</span>
+            </Button>
+          </div>
+          <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary-glow bg-clip-text text-transparent">
             BehavShield
           </h1>
           <p className="text-xl text-muted-foreground">
             User Behavior Anomaly Detection with K-Means Clustering
           </p>
           
-          <div className="flex gap-4 justify-center flex-wrap">
+          <div className="flex gap-3 justify-center flex-wrap">
             <Button 
               onClick={trainModel} 
               disabled={isTraining || modelTrained}
@@ -180,6 +203,15 @@ const Index = () => {
               className="bg-gradient-to-r from-primary to-primary-glow hover:opacity-90 transition-opacity"
             >
               {isTraining ? 'Training...' : modelTrained ? 'Model Trained ✓' : 'Train Model'}
+            </Button>
+            <Button 
+              onClick={loadHistory} 
+              disabled={isLoadingHistory}
+              variant="outline"
+              size="lg"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+              Reload History
             </Button>
             <Button 
               onClick={clearLocalHistory} 
