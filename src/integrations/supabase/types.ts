@@ -19,6 +19,7 @@ export type Database = {
           avg_bytes: number
           avg_daily_access: number
           created_at: string
+          detected_by_algorithm: string | null
           distance: number
           failed_logins: number
           id: string
@@ -32,6 +33,7 @@ export type Database = {
           avg_bytes: number
           avg_daily_access: number
           created_at?: string
+          detected_by_algorithm?: string | null
           distance: number
           failed_logins: number
           id?: string
@@ -45,6 +47,7 @@ export type Database = {
           avg_bytes?: number
           avg_daily_access?: number
           created_at?: string
+          detected_by_algorithm?: string | null
           distance?: number
           failed_logins?: number
           id?: string
@@ -58,37 +61,67 @@ export type Database = {
       }
       model_config: {
         Row: {
+          accuracy: number | null
+          algorithm: string
           centroids: Json
           created_at: string
+          dbscan_eps: number | null
+          dbscan_min_samples: number | null
+          f1_score: number | null
           features_list: Json
           id: string
+          iforest_contamination: number | null
+          iforest_n_estimators: number | null
           is_active: boolean
           model_version: string
+          precision_score: number | null
+          recall_score: number | null
           scaler_mean: Json
           scaler_std: Json
           threshold: number
+          training_time_ms: number | null
         }
         Insert: {
+          accuracy?: number | null
+          algorithm?: string
           centroids: Json
           created_at?: string
+          dbscan_eps?: number | null
+          dbscan_min_samples?: number | null
+          f1_score?: number | null
           features_list: Json
           id?: string
+          iforest_contamination?: number | null
+          iforest_n_estimators?: number | null
           is_active?: boolean
           model_version?: string
+          precision_score?: number | null
+          recall_score?: number | null
           scaler_mean: Json
           scaler_std: Json
           threshold: number
+          training_time_ms?: number | null
         }
         Update: {
+          accuracy?: number | null
+          algorithm?: string
           centroids?: Json
           created_at?: string
+          dbscan_eps?: number | null
+          dbscan_min_samples?: number | null
+          f1_score?: number | null
           features_list?: Json
           id?: string
+          iforest_contamination?: number | null
+          iforest_n_estimators?: number | null
           is_active?: boolean
           model_version?: string
+          precision_score?: number | null
+          recall_score?: number | null
           scaler_mean?: Json
           scaler_std?: Json
           threshold?: number
+          training_time_ms?: number | null
         }
         Relationships: []
       }
