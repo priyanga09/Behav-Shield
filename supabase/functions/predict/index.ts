@@ -48,11 +48,19 @@ serve(async (req) => {
       .select('*')
       .eq('is_active', true)
       .eq('algorithm', algorithm)
-      .single();
+      .maybeSingle();
 
-    if (modelError || !modelData) {
+    if (modelError) {
+      console.error('Model fetch error:', modelError);
       return new Response(
-        JSON.stringify({ error: `No trained ${algorithm.toUpperCase()} model found. Please train the model first.` }),
+        JSON.stringify({ error: `Database error: ${modelError.message}` }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!modelData) {
+      return new Response(
+        JSON.stringify({ error: `No trained ${algorithm.toUpperCase()} model found. Please train the models first by clicking "Train All Models".` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -73,14 +81,22 @@ serve(async (req) => {
       score = Math.min(...distances);
       isAnomaly = score > threshold;
     } else if (algorithm === 'dbscan') {
-      // DBSCAN: Calculate distance to nearest neighbor in training data
-      // For simplicity, we'll use a basic distance check
-      score = Math.random() * 3; // Placeholder - in production, store training data
-      isAnomaly = score > 2.0; // Points far from clusters
+      // DBSCAN: Use feature-based heuristic for anomaly detection
+      // Calculate a composite score based on scaled features
+      const featureSum = scaledFeatures.reduce((sum, val) => sum + Math.abs(val), 0);
+      score = featureSum / scaledFeatures.length;
+      
+      // Points with high average deviation from mean are anomalies
+      const dbscanThreshold = modelData.dbscan_eps || 1.5;
+      isAnomaly = score > dbscanThreshold;
     } else if (algorithm === 'iforest') {
-      // Isolation Forest: Calculate anomaly score
-      // Simplified version - in production, would need to store trees
-      score = Math.random(); // Placeholder score between 0-1
+      // Isolation Forest: Use feature-based anomaly score
+      // Calculate how isolated/unusual this point is
+      const maxFeature = Math.max(...scaledFeatures.map(Math.abs));
+      const avgFeature = scaledFeatures.reduce((sum, val) => sum + Math.abs(val), 0) / scaledFeatures.length;
+      
+      // Combine max and average deviation for anomaly score
+      score = (maxFeature + avgFeature) / 2;
       isAnomaly = score > threshold;
     }
 
