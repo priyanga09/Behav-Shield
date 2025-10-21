@@ -67,8 +67,14 @@ const Index = () => {
       .select('*')
       .eq('is_active', true);
     
-    // Check if at least one model is trained (ideally all three)
-    setModelTrained(data && data.length > 0);
+    // Check if we have all three models with valid metrics
+    const validModels = data?.filter(m => m.accuracy !== null && m.precision_score !== null) || [];
+    const hasAllModels = validModels.length >= 3 && 
+      validModels.some(m => m.algorithm === 'kmeans') &&
+      validModels.some(m => m.algorithm === 'dbscan') &&
+      validModels.some(m => m.algorithm === 'iforest');
+    
+    setModelTrained(hasAllModels);
   };
 
   const loadHistory = async () => {
@@ -221,11 +227,11 @@ const Index = () => {
           <div className="flex gap-3 justify-center flex-wrap">
             <Button 
               onClick={trainModel} 
-              disabled={isTraining || modelTrained}
+              disabled={isTraining}
               size="lg"
               className="bg-gradient-to-r from-primary to-primary-glow hover:opacity-90 transition-opacity"
             >
-              {isTraining ? 'Training All Models...' : modelTrained ? 'All Models Trained ✓' : 'Train All Models'}
+              {isTraining ? 'Training All Models...' : modelTrained ? 'Retrain All Models' : 'Train All Models'}
             </Button>
             <Button 
               onClick={loadHistory} 

@@ -31,7 +31,15 @@ export const ModelComparison = () => {
       if (error) throw error;
 
       if (data) {
-        const formattedMetrics = data.map(d => ({
+        // Filter out models with null metrics (old models)
+        const validData = data.filter(d => 
+          d.accuracy !== null && 
+          d.precision_score !== null && 
+          d.recall_score !== null && 
+          d.f1_score !== null
+        );
+        
+        const formattedMetrics = validData.map(d => ({
           algorithm: d.algorithm.toUpperCase(),
           accuracy: (d.accuracy || 0) * 100,
           precision: (d.precision_score || 0) * 100,
