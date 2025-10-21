@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload } from "lucide-react";
 import { AlgorithmSelector } from "./AlgorithmSelector";
+import { AlgorithmComparison } from "./AlgorithmComparison";
 
 interface BehaviorFormProps {
   modelTrained: boolean;
@@ -24,6 +25,7 @@ export function BehaviorForm({ modelTrained }: BehaviorFormProps) {
   const [algorithm, setAlgorithm] = useState("kmeans");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [comparisonResults, setComparisonResults] = useState<any[]>([]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,23 +37,45 @@ export function BehaviorForm({ modelTrained }: BehaviorFormProps) {
 
     setIsSubmitting(true);
     try {
-      const body = {
+      const inputData = {
         total_logins: parseInt(formData.total_logins),
         total_access: parseInt(formData.total_access),
         failed_logins: parseInt(formData.failed_logins),
         unique_resources: parseInt(formData.unique_resources),
         avg_daily_access: parseFloat(formData.avg_daily_access),
         avg_bytes: parseFloat(formData.avg_bytes),
-        algorithm
       };
 
-      const { data, error } = await supabase.functions.invoke('predict', {
-        body
-      });
+      // Run predictions with all 3 algorithms
+      const algorithms = ['kmeans', 'dbscan', 'iforest'];
+      const results = [];
 
-      if (error) throw error;
+      for (const algo of algorithms) {
+        const { data, error } = await supabase.functions.invoke('predict', {
+          body: { ...inputData, algorithm: algo }
+        });
 
-      toast.success(data.message);
+        if (!error && data) {
+          results.push({
+            algorithm: algo,
+            score: data.score,
+            is_anomaly: data.is_anomaly,
+            message: data.message
+          });
+        }
+      }
+
+      setComparisonResults(results);
+      
+      // Show summary toast
+      const anomalyCount = results.filter(r => r.is_anomaly).length;
+      if (anomalyCount === 3) {
+        toast.error('⚠️ All algorithms detected an anomaly!');
+      } else if (anomalyCount === 0) {
+        toast.success('✅ All algorithms classify as normal behavior');
+      } else {
+        toast.warning(`${anomalyCount}/3 algorithms detected an anomaly`);
+      }
       
       // Reset form
       setFormData({
@@ -101,18 +125,19 @@ export function BehaviorForm({ modelTrained }: BehaviorFormProps) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Check Behavior</CardTitle>
-        <CardDescription>Enter user behavior metrics for anomaly detection</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Check Behavior</CardTitle>
+          <CardDescription>Enter user behavior metrics for anomaly detection</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <AlgorithmSelector 
-            value={algorithm} 
-            onChange={setAlgorithm}
-            disabled={isSubmitting || !modelTrained}
-          />
+          <div className="p-3 bg-muted/50 rounded-lg">
+            <p className="text-sm text-muted-foreground">
+              <strong>Comparison Mode:</strong> Checking behavior will test all 3 algorithms simultaneously
+            </p>
+          </div>
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -217,5 +242,8 @@ export function BehaviorForm({ modelTrained }: BehaviorFormProps) {
         </div>
       </CardContent>
     </Card>
+    
+    <AlgorithmComparison results={comparisonResults} />
+    </>
   );
 }
