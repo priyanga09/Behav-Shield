@@ -59,16 +59,28 @@ serve(async (req) => {
 
     console.log(`Processing ${records.length} records from CSV`);
 
-    // Load active model
+    // Default to kmeans algorithm for bulk processing
+    const algorithm = 'kmeans';
+
+    // Load active model for kmeans
     const { data: modelData, error: modelError } = await supabaseClient
       .from('model_config')
       .select('*')
       .eq('is_active', true)
-      .single();
+      .eq('algorithm', algorithm)
+      .maybeSingle();
 
-    if (modelError || !modelData) {
+    if (modelError) {
+      console.error('Model fetch error:', modelError);
       return new Response(
-        JSON.stringify({ error: 'No trained model found. Please train the model first.' }),
+        JSON.stringify({ error: `Database error: ${modelError.message}` }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!modelData) {
+      return new Response(
+        JSON.stringify({ error: `No trained ${algorithm.toUpperCase()} model found. Please train the models first by clicking "Train All Models".` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -111,7 +123,8 @@ serve(async (req) => {
         avg_daily_access: parseFloat(record.avg_daily_access),
         avg_bytes: parseFloat(record.avg_bytes),
         distance: minDistance,
-        is_anomaly: isAnomaly
+        is_anomaly: isAnomaly,
+        detected_by_algorithm: algorithm
       });
     }
 
