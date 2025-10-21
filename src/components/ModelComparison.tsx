@@ -18,31 +18,9 @@ export const ModelComparison = () => {
 
   useEffect(() => {
     loadMetrics();
-    
-    // Reload metrics when new models are trained
-    const channel = supabase
-      .channel('model_config_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'model_config'
-        },
-        () => {
-          console.log('Model config updated, reloading metrics...');
-          loadMetrics();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
   const loadMetrics = async () => {
-    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('model_config')
@@ -50,38 +28,21 @@ export const ModelComparison = () => {
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error loading metrics:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('Loaded model metrics:', data);
-
-      if (data && data.length > 0) {
-        // Filter out models without metrics (old models)
-        const validData = data.filter(d => 
-          d.accuracy !== null && d.precision_score !== null
-        );
-        
-        if (validData.length > 0) {
-          const formattedMetrics = validData.map(d => ({
-            algorithm: d.algorithm.toUpperCase(),
-            accuracy: (d.accuracy || 0) * 100,
-            precision: (d.precision_score || 0) * 100,
-            recall: (d.recall_score || 0) * 100,
-            f1_score: (d.f1_score || 0) * 100,
-            training_time_ms: d.training_time_ms || 0,
-          }));
-          setMetrics(formattedMetrics);
-        } else {
-          setMetrics([]);
-        }
-      } else {
-        setMetrics([]);
+      if (data) {
+        const formattedMetrics = data.map(d => ({
+          algorithm: d.algorithm.toUpperCase(),
+          accuracy: (d.accuracy || 0) * 100,
+          precision: (d.precision_score || 0) * 100,
+          recall: (d.recall_score || 0) * 100,
+          f1_score: (d.f1_score || 0) * 100,
+          training_time_ms: d.training_time_ms || 0,
+        }));
+        setMetrics(formattedMetrics);
       }
     } catch (error) {
       console.error('Error loading metrics:', error);
-      setMetrics([]);
     } finally {
       setLoading(false);
     }
