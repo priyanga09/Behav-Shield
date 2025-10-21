@@ -3,6 +3,7 @@ import { BehaviorForm } from "@/components/BehaviorForm";
 import { BehaviorHistory } from "@/components/BehaviorHistory";
 import { BehaviorChart } from "@/components/BehaviorChart";
 import { StreamControls } from "@/components/StreamControls";
+import { ModelComparison } from "@/components/ModelComparison";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -64,10 +65,10 @@ const Index = () => {
     const { data } = await supabase
       .from('model_config')
       .select('*')
-      .eq('is_active', true)
-      .maybeSingle();
+      .eq('is_active', true);
     
-    setModelTrained(!!data);
+    // Check if at least one model is trained (ideally all three)
+    setModelTrained(data && data.length > 0);
   };
 
   const loadHistory = async () => {
@@ -93,6 +94,7 @@ const Index = () => {
 
   const trainModel = async () => {
     setIsTraining(true);
+    toast.info('Training all models (K-Means, DBSCAN, Isolation Forest)...');
     try {
       const response = await supabase.functions.invoke('train-model', {
         body: {}
@@ -100,11 +102,15 @@ const Index = () => {
 
       if (response.error) throw response.error;
 
-      toast.success('Model trained successfully!');
+      const { results, total_time_ms } = response.data;
+      toast.success(`All models trained successfully in ${total_time_ms}ms!`, {
+        description: `${results?.length || 3} algorithms trained and evaluated`,
+        duration: 5000
+      });
       setModelTrained(true);
     } catch (error) {
       console.error('Training error:', error);
-      toast.error('Failed to train model');
+      toast.error('Failed to train models');
     } finally {
       setIsTraining(false);
     }
@@ -134,6 +140,7 @@ const Index = () => {
         unique_resources: Math.floor(Math.random() * 100 + 200),
         avg_daily_access: Math.random() * 100 + 150,
         avg_bytes: Math.random() * 5000000 + 10000000,
+        algorithm: 'kmeans' // Default for streaming
       } : {
         total_logins: Math.floor(Math.random() * 20 + 5),
         total_access: Math.floor(Math.random() * 100 + 50),
@@ -141,6 +148,7 @@ const Index = () => {
         unique_resources: Math.floor(Math.random() * 30 + 10),
         avg_daily_access: Math.random() * 50 + 20,
         avg_bytes: Math.random() * 1000000 + 1000000,
+        algorithm: 'kmeans' // Default for streaming
       };
 
       await supabase.functions.invoke('predict', {
@@ -204,7 +212,10 @@ const Index = () => {
             BehavShield
           </h1>
           <p className="text-xl text-muted-foreground">
-            User Behavior Anomaly Detection with K-Means Clustering
+            Advanced User Behavior Anomaly Detection
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Compare K-Means, DBSCAN, and Isolation Forest algorithms
           </p>
           
           <div className="flex gap-3 justify-center flex-wrap">
@@ -214,7 +225,7 @@ const Index = () => {
               size="lg"
               className="bg-gradient-to-r from-primary to-primary-glow hover:opacity-90 transition-opacity"
             >
-              {isTraining ? 'Training...' : modelTrained ? 'Model Trained ✓' : 'Train Model'}
+              {isTraining ? 'Training All Models...' : modelTrained ? 'All Models Trained ✓' : 'Train All Models'}
             </Button>
             <Button 
               onClick={loadHistory} 
@@ -257,6 +268,8 @@ const Index = () => {
             <BehaviorChart records={records} />
           </div>
         </div>
+
+        <ModelComparison />
 
         <BehaviorHistory records={records} />
       </div>

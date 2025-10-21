@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload } from "lucide-react";
+import { AlgorithmSelector } from "./AlgorithmSelector";
 
 interface BehaviorFormProps {
   modelTrained: boolean;
@@ -20,6 +21,7 @@ export function BehaviorForm({ modelTrained }: BehaviorFormProps) {
     avg_daily_access: "",
     avg_bytes: ""
   });
+  const [algorithm, setAlgorithm] = useState("kmeans");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -39,7 +41,8 @@ export function BehaviorForm({ modelTrained }: BehaviorFormProps) {
         failed_logins: parseInt(formData.failed_logins),
         unique_resources: parseInt(formData.unique_resources),
         avg_daily_access: parseFloat(formData.avg_daily_access),
-        avg_bytes: parseFloat(formData.avg_bytes)
+        avg_bytes: parseFloat(formData.avg_bytes),
+        algorithm
       };
 
       const { data, error } = await supabase.functions.invoke('predict', {
@@ -105,6 +108,12 @@ export function BehaviorForm({ modelTrained }: BehaviorFormProps) {
       </CardHeader>
       <CardContent className="space-y-6">
         <form onSubmit={handleSubmit} className="space-y-4">
+          <AlgorithmSelector 
+            value={algorithm} 
+            onChange={setAlgorithm}
+            disabled={isSubmitting || !modelTrained}
+          />
+          
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="total_logins">Total Logins</Label>

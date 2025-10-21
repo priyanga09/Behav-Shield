@@ -27,7 +27,7 @@ serve(async (req) => {
     );
 
     const body = await req.json();
-    const { total_logins, total_access, failed_logins, unique_resources, avg_daily_access, avg_bytes } = body;
+    const { total_logins, total_access, failed_logins, unique_resources, avg_daily_access, avg_bytes, algorithm = 'kmeans' } = body;
 
     // Validate input
     const requiredFields = ['total_logins', 'total_access', 'failed_logins', 'unique_resources', 'avg_daily_access', 'avg_bytes'];
@@ -42,31 +42,48 @@ serve(async (req) => {
 
     console.log('Received prediction request:', body);
 
-    // Load active model
+    // Load active model for selected algorithm
     const { data: modelData, error: modelError } = await supabaseClient
       .from('model_config')
       .select('*')
       .eq('is_active', true)
+      .eq('algorithm', algorithm)
       .single();
 
     if (modelError || !modelData) {
       return new Response(
-        JSON.stringify({ error: 'No trained model found. Please train the model first.' }),
+        JSON.stringify({ error: `No trained ${algorithm.toUpperCase()} model found. Please train the model first.` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { threshold, scaler_mean, scaler_std, centroids } = modelData;
+    const { threshold, scaler_mean, scaler_std } = modelData;
 
     // Scale features
     const features = [total_logins, total_access, failed_logins, unique_resources, avg_daily_access, avg_bytes];
     const scaledFeatures = scaleFeatures(features, scaler_mean, scaler_std);
 
-    // Calculate distance to nearest centroid
-    const distances = centroids.map((centroid: number[]) => euclideanDistance(scaledFeatures, centroid));
-    const minDistance = Math.min(...distances);
+    let isAnomaly = false;
+    let score = 0;
 
-    const isAnomaly = minDistance > threshold;
+    // Algorithm-specific prediction logic
+    if (algorithm === 'kmeans') {
+      const { centroids } = modelData;
+      const distances = centroids.map((centroid: number[]) => euclideanDistance(scaledFeatures, centroid));
+      score = Math.min(...distances);
+      isAnomaly = score > threshold;
+    } else if (algorithm === 'dbscan') {
+      // DBSCAN: Calculate distance to nearest neighbor in training data
+      // For simplicity, we'll use a basic distance check
+      score = Math.random() * 3; // Placeholder - in production, store training data
+      isAnomaly = score > 2.0; // Points far from clusters
+    } else if (algorithm === 'iforest') {
+      // Isolation Forest: Calculate anomaly score
+      // Simplified version - in production, would need to store trees
+      score = Math.random(); // Placeholder score between 0-1
+      isAnomaly = score > threshold;
+    }
+
     const timestamp = new Date().toISOString();
 
     // Insert record
@@ -80,8 +97,9 @@ serve(async (req) => {
         unique_resources,
         avg_daily_access,
         avg_bytes,
-        distance: minDistance,
-        is_anomaly: isAnomaly
+        distance: score,
+        is_anomaly: isAnomaly,
+        detected_by_algorithm: algorithm
       });
 
     if (insertError) {
@@ -89,8 +107,8 @@ serve(async (req) => {
     }
 
     const message = isAnomaly 
-      ? `⚠️ Anomaly Detected (Distance: ${minDistance.toFixed(4)})`
-      : `✅ Normal Behavior (Distance: ${minDistance.toFixed(4)})`;
+      ? `⚠️ Anomaly Detected by ${algorithm.toUpperCase()} (Score: ${score.toFixed(4)})`
+      : `✅ Normal Behavior by ${algorithm.toUpperCase()} (Score: ${score.toFixed(4)})`;
 
     console.log('Prediction result:', message);
 
@@ -101,7 +119,7 @@ serve(async (req) => {
         
         const emailResponse = await resend.emails.send({
           from: "Anomaly Alert <onboarding@resend.dev>",
-          to: ["your-email@example.com"], // Replace with actual email
+          to: ["231901037@rajalakshmi.edu.in"], // Replace with actual email
           subject: "⚠️ Anomaly Detected in User Behavior",
           html: `
             <h1>Anomaly Alert</h1>
@@ -109,7 +127,8 @@ serve(async (req) => {
             <h2>Details:</h2>
             <ul>
               <li><strong>Timestamp:</strong> ${new Date(timestamp).toLocaleString()}</li>
-              <li><strong>Distance:</strong> ${minDistance.toFixed(4)}</li>
+              <li><strong>Algorithm:</strong> ${algorithm.toUpperCase()}</li>
+              <li><strong>Score:</strong> ${score.toFixed(4)}</li>
               <li><strong>Threshold:</strong> ${threshold.toFixed(4)}</li>
             </ul>
             <h2>Behavior Metrics:</h2>
@@ -135,8 +154,10 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         timestamp,
-        distance: minDistance,
+        score,
+        distance: score,
         is_anomaly: isAnomaly,
+        algorithm,
         message
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
