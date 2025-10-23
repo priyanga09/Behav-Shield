@@ -26,6 +26,7 @@ export function BehaviorForm({ modelTrained }: BehaviorFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [comparisonResults, setComparisonResults] = useState<any[]>([]);
+  const [checkMode, setCheckMode] = useState<"all" | "kmeans">("all");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,8 +47,8 @@ export function BehaviorForm({ modelTrained }: BehaviorFormProps) {
         avg_bytes: parseFloat(formData.avg_bytes),
       };
 
-      // Run predictions with all 3 algorithms
-      const algorithms = ['kmeans', 'dbscan', 'iforest'];
+      // Run predictions based on mode
+      const algorithms = checkMode === "all" ? ['kmeans', 'dbscan', 'iforest'] : ['kmeans'];
       const results = [];
 
       for (const algo of algorithms) {
@@ -68,13 +69,22 @@ export function BehaviorForm({ modelTrained }: BehaviorFormProps) {
       setComparisonResults(results);
       
       // Show summary toast
-      const anomalyCount = results.filter(r => r.is_anomaly).length;
-      if (anomalyCount === 3) {
-        toast.error('⚠️ All algorithms detected an anomaly!');
-      } else if (anomalyCount === 0) {
-        toast.success('✅ All algorithms classify as normal behavior');
+      if (checkMode === "all") {
+        const anomalyCount = results.filter(r => r.is_anomaly).length;
+        if (anomalyCount === 3) {
+          toast.error('⚠️ All algorithms detected an anomaly!');
+        } else if (anomalyCount === 0) {
+          toast.success('✅ All algorithms classify as normal behavior');
+        } else {
+          toast.warning(`${anomalyCount}/3 algorithms detected an anomaly`);
+        }
       } else {
-        toast.warning(`${anomalyCount}/3 algorithms detected an anomaly`);
+        const result = results[0];
+        if (result.is_anomaly) {
+          toast.error(`⚠️ K-Means detected an anomaly! Score: ${result.score.toFixed(4)}`);
+        } else {
+          toast.success(`✅ K-Means: Normal behavior (Score: ${result.score.toFixed(4)})`);
+        }
       }
       
       // Reset form
@@ -133,9 +143,30 @@ export function BehaviorForm({ modelTrained }: BehaviorFormProps) {
         </CardHeader>
         <CardContent className="space-y-6">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="p-3 bg-muted/50 rounded-lg">
-            <p className="text-sm text-muted-foreground">
-              <strong>Comparison Mode:</strong> Checking behavior will test all 3 algorithms simultaneously
+          <div className="space-y-3">
+            <Label>Check Mode</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={checkMode === "all" ? "default" : "outline"}
+                onClick={() => setCheckMode("all")}
+                className="flex-1"
+              >
+                All Algorithms
+              </Button>
+              <Button
+                type="button"
+                variant={checkMode === "kmeans" ? "default" : "outline"}
+                onClick={() => setCheckMode("kmeans")}
+                className="flex-1"
+              >
+                K-Means Only
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {checkMode === "all" 
+                ? "Compare all 3 algorithms (K-Means is primary)" 
+                : "Check with K-Means algorithm only"}
             </p>
           </div>
           

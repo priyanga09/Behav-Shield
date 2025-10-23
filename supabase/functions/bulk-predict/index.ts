@@ -59,36 +59,27 @@ serve(async (req) => {
 
     console.log(`Processing ${records.length} records from CSV`);
 
-    // Default to kmeans algorithm for bulk processing
-    const algorithm = 'kmeans';
-
-    // Load active model for kmeans
-    const { data: modelData, error: modelError } = await supabaseClient
+    let anomalies = 0;
+    let normal = 0;
+    const batchInserts = [];
+    const algorithms = ['kmeans', 'dbscan', 'iforest'];
+    
+    // Validate CSV columns using first available model
+    const { data: sampleModel } = await supabaseClient
       .from('model_config')
-      .select('*')
+      .select('features_list')
       .eq('is_active', true)
-      .eq('algorithm', algorithm)
+      .limit(1)
       .maybeSingle();
-
-    if (modelError) {
-      console.error('Model fetch error:', modelError);
+    
+    if (!sampleModel) {
       return new Response(
-        JSON.stringify({ error: `Database error: ${modelError.message}` }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!modelData) {
-      return new Response(
-        JSON.stringify({ error: `No trained ${algorithm.toUpperCase()} model found. Please train the models first by clicking "Train All Models".` }),
+        JSON.stringify({ error: 'No trained models found. Please train the models first.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { threshold, scaler_mean, scaler_std, centroids, features_list } = modelData;
-
-    // Validate CSV columns
-    const requiredFields = features_list;
+    const requiredFields = sampleModel.features_list;
     const sampleRecord = records[0];
     const missingFields = requiredFields.filter((field: string) => !sampleRecord.hasOwnProperty(field));
 
@@ -99,33 +90,73 @@ serve(async (req) => {
       );
     }
 
-    let anomalies = 0;
-    let normal = 0;
-    const batchInserts = [];
-
+    // Process each record with all 3 algorithms
     for (const record of records) {
-      const features = features_list.map((f: string) => parseFloat(record[f]));
-      const scaledFeatures = scaleFeatures(features, scaler_mean, scaler_std);
+      try {
+        const features = requiredFields.map((f: string) => parseFloat(record[f]));
 
-      const distances = centroids.map((centroid: number[]) => euclideanDistance(scaledFeatures, centroid));
-      const minDistance = Math.min(...distances);
-      const isAnomaly = minDistance > threshold;
+        // Check with all 3 algorithms
+        for (const algo of algorithms) {
+          const { data: modelData, error: modelError } = await supabaseClient
+            .from('model_config')
+            .select('*')
+            .eq('is_active', true)
+            .eq('algorithm', algo)
+            .maybeSingle();
 
-      if (isAnomaly) anomalies++;
-      else normal++;
+          if (modelError || !modelData) {
+            console.error(`Model for ${algo} not found, skipping`);
+            continue;
+          }
 
-      batchInserts.push({
-        timestamp: new Date().toISOString(),
-        total_logins: parseInt(record.total_logins),
-        total_access: parseInt(record.total_access),
-        failed_logins: parseInt(record.failed_logins),
-        unique_resources: parseInt(record.unique_resources),
-        avg_daily_access: parseFloat(record.avg_daily_access),
-        avg_bytes: parseFloat(record.avg_bytes),
-        distance: minDistance,
-        is_anomaly: isAnomaly,
-        detected_by_algorithm: algorithm
-      });
+          const algoScalerMean = modelData.scaler_mean as number[];
+          const algoScalerStd = modelData.scaler_std as number[];
+          const algoCentroids = modelData.centroids as number[][];
+          const algoThreshold = modelData.threshold;
+
+          // Scale features
+          const scaledFeatures = features.map((val: number, idx: number) => 
+            (val - algoScalerMean[idx]) / algoScalerStd[idx]
+          );
+
+          let distance = 0;
+          let isAnomaly = false;
+
+          // Algorithm-specific scoring
+          if (algo === 'kmeans') {
+            const distances = algoCentroids.map((centroid: number[]) => 
+              euclideanDistance(scaledFeatures, centroid)
+            );
+            distance = Math.min(...distances);
+            isAnomaly = distance > algoThreshold;
+          } else if (algo === 'dbscan') {
+            distance = scaledFeatures.reduce((sum: number, val: number) => sum + Math.abs(val), 0) / scaledFeatures.length;
+            isAnomaly = distance > (modelData.dbscan_eps || 1.5);
+          } else if (algo === 'iforest') {
+            distance = scaledFeatures.reduce((sum: number, val: number) => sum + val * val, 0) / scaledFeatures.length;
+            isAnomaly = distance > algoThreshold;
+          }
+
+          if (isAnomaly) anomalies++;
+          else normal++;
+
+          batchInserts.push({
+            timestamp: new Date().toISOString(),
+            total_logins: parseInt(record.total_logins),
+            total_access: parseInt(record.total_access),
+            failed_logins: parseInt(record.failed_logins),
+            unique_resources: parseInt(record.unique_resources),
+            avg_daily_access: parseFloat(record.avg_daily_access),
+            avg_bytes: parseFloat(record.avg_bytes),
+            distance: distance,
+            is_anomaly: isAnomaly,
+            detected_by_algorithm: algo
+          });
+        }
+      } catch (parseError) {
+        console.error('Error processing record:', parseError);
+        continue;
+      }
     }
 
     // Batch insert

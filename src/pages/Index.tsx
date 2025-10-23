@@ -146,7 +146,6 @@ const Index = () => {
         unique_resources: Math.floor(Math.random() * 100 + 200),
         avg_daily_access: Math.random() * 100 + 150,
         avg_bytes: Math.random() * 5000000 + 10000000,
-        algorithm: 'kmeans' // Default for streaming
       } : {
         total_logins: Math.floor(Math.random() * 20 + 5),
         total_access: Math.floor(Math.random() * 100 + 50),
@@ -154,12 +153,15 @@ const Index = () => {
         unique_resources: Math.floor(Math.random() * 30 + 10),
         avg_daily_access: Math.random() * 50 + 20,
         avg_bytes: Math.random() * 1000000 + 1000000,
-        algorithm: 'kmeans' // Default for streaming
       };
 
-      await supabase.functions.invoke('predict', {
-        body: record
-      });
+      // Check with all 3 algorithms (K-Means is primary)
+      const algorithms = ['kmeans', 'dbscan', 'iforest'];
+      for (const algo of algorithms) {
+        await supabase.functions.invoke('predict', {
+          body: { ...record, algorithm: algo }
+        });
+      }
     }, 3000);
 
     setStreamInterval(interval);

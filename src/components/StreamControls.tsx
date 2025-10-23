@@ -43,7 +43,7 @@ export function StreamControls({ isStreaming, onStart, onStop, modelTrained }: S
         </div>
         
         <p className="text-sm text-muted-foreground">
-          Simulated stream generates behavior records every 3 seconds with ~20% anomaly rate
+          Simulated stream generates behavior records every 3 seconds with ~20% anomaly rate. Each record is checked with all 3 algorithms (K-Means is primary).
         </p>
       </CardContent>
     </Card>
