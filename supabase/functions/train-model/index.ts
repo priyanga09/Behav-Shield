@@ -281,6 +281,29 @@ function generateSyntheticData(numSamples = 1000): number[][] {
   return data;
 }
 
+function calculateOptimalDbscanParams(data: number[][]): { eps: number, minSamples: number } {
+  // Calculate average distance to k-nearest neighbors
+  const k = Math.max(4, Math.floor(Math.log(data.length)));
+  const distances: number[] = [];
+  
+  for (let i = 0; i < Math.min(data.length, 100); i++) {
+    const dists: number[] = [];
+    for (let j = 0; j < data.length; j++) {
+      if (i !== j) {
+        dists.push(euclideanDistance(data[i], data[j]));
+      }
+    }
+    dists.sort((a, b) => a - b);
+    distances.push(dists[Math.min(k - 1, dists.length - 1)]);
+  }
+  
+  distances.sort((a, b) => a - b);
+  const eps = distances[Math.floor(distances.length * 0.85)]; // 85th percentile
+  const minSamples = Math.max(4, Math.floor(Math.log(data.length)));
+  
+  return { eps, minSamples };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -295,18 +318,42 @@ serve(async (req) => {
     console.log('Starting multi-algorithm model training...');
     const startTime = Date.now();
     
-    // Generate synthetic training data
-    const rawData = generateSyntheticData(1000);
     const features = ['total_logins', 'total_access', 'failed_logins', 'unique_resources', 'avg_daily_access', 'avg_bytes'];
+    
+    // Fetch existing behavior records to use for training
+    const { data: existingRecords, error: fetchError } = await supabaseClient
+      .from('behavior_records')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(5000);
+    
+    let rawData: number[][];
+    let groundTruth: number[];
+    
+    if (existingRecords && existingRecords.length > 100) {
+      // Use real data for training
+      console.log(`Using ${existingRecords.length} real behavior records for training`);
+      rawData = existingRecords.map(record => [
+        record.total_logins,
+        record.total_access,
+        record.failed_logins,
+        record.unique_resources,
+        record.avg_daily_access,
+        record.avg_bytes
+      ]);
+      groundTruth = existingRecords.map(record => record.is_anomaly ? 1 : 0);
+    } else {
+      // Not enough real data, use synthetic
+      console.log('Not enough real data, generating synthetic training data');
+      rawData = generateSyntheticData(1000);
+      groundTruth = rawData.map(row => {
+        const isAnomaly = row[0] > 100 || row[1] > 500 || row[2] > 10;
+        return isAnomaly ? 1 : 0;
+      });
+    }
     
     // Scale the data
     const { scaledData, mean, std } = standardScaler(rawData);
-    
-    // Generate ground truth labels for evaluation
-    const groundTruth = rawData.map(row => {
-      const isAnomaly = row[0] > 100 || row[1] > 500 || row[2] > 10;
-      return isAnomaly ? 1 : 0;
-    });
 
     const results = [];
 
@@ -353,8 +400,8 @@ serve(async (req) => {
     // === TRAIN DBSCAN ===
     console.log('Training DBSCAN...');
     const dbscanStart = Date.now();
-    const eps = 1.5;
-    const minSamples = 5;
+    const { eps, minSamples } = calculateOptimalDbscanParams(scaledData);
+    console.log(`DBSCAN parameters: eps=${eps.toFixed(3)}, minSamples=${minSamples}`);
     const { labels: dbscanLabels } = dbscan(scaledData, eps, minSamples);
     
     const dbscanPredictions = dbscanLabels.map(label => label === -2 ? 1 : 0);
