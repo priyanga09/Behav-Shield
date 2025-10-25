@@ -1,0 +1,11 @@
+user_id,total_logins,total_access,failed_logins,unique_resources,avg_daily_access,avg_bytes,expected_result
+user_001,135,750,18,45,125,850000,ANOMALY - All 3 algorithms detect
+user_002,142,820,22,52,138,920000,ANOMALY - All 3 algorithms detect
+user_003,128,680,15,48,115,780000,ANOMALY - All 3 algorithms detect
+user_004,35,180,1,12,30,245000,NORMAL - All 3 algorithms accept
+user_005,42,220,0,15,35,280000,NORMAL - All 3 algorithms accept
+user_006,28,165,2,10,28,195000,NORMAL - All 3 algorithms accept
+user_007,38,195,1,14,32,260000,NORMAL - All 3 algorithms accept
+user_008,45,240,0,18,38,310000,NORMAL - All 3 algorithms accept
+user_009,32,175,1,11,29,225000,NORMAL - All 3 algorithms accept
+user_010,40,210,2,16,34,275000,NORMAL - All 3 algorithms accept
