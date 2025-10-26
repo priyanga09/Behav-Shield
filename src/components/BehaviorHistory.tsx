@@ -26,30 +26,32 @@ export function BehaviorHistory({ records }: BehaviorHistoryProps) {
   const groupedRecords: GroupedRecord[] = [];
   
   records.forEach((record) => {
+    if (!record || !record.timestamp) return;
+    
     const recordTime = new Date(record.timestamp).getTime();
     const existingGroup = groupedRecords.find(
       (group) => Math.abs(new Date(group.timestamp).getTime() - recordTime) < 2000
     );
 
+    const algo = (record.detected_by_algorithm?.toLowerCase() || 'kmeans') as 'kmeans' | 'dbscan' | 'iforest';
+    
     if (existingGroup) {
-      const algo = record.detected_by_algorithm?.toLowerCase() || 'kmeans';
-      existingGroup.algorithms[algo as keyof typeof existingGroup.algorithms] = {
-        distance: record.distance,
-        is_anomaly: record.is_anomaly,
+      existingGroup.algorithms[algo] = {
+        distance: record.distance || 0,
+        is_anomaly: record.is_anomaly || false,
       };
     } else {
-      const algo = record.detected_by_algorithm?.toLowerCase() || 'kmeans';
       groupedRecords.push({
         timestamp: record.timestamp,
         inputs: {
-          total_logins: record.total_logins,
-          total_access: record.total_access,
-          failed_logins: record.failed_logins,
+          total_logins: record.total_logins || 0,
+          total_access: record.total_access || 0,
+          failed_logins: record.failed_logins || 0,
         },
         algorithms: {
           [algo]: {
-            distance: record.distance,
-            is_anomaly: record.is_anomaly,
+            distance: record.distance || 0,
+            is_anomaly: record.is_anomaly || false,
           },
         },
       });
